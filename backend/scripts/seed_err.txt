@@ -1,0 +1,196 @@
+STDOUT:
+[CONFIG] Loaded from: C:\Users\Manav Motiramani\OneDrive\Desktop\Dhurandhar\TEAM-DHURANDHAR\healthlink-project\healthlink\apps\api\app\core\..\..\.env
+[DB] Connecting to: localhost:5432/healthlink_db
+Using patients:     C:\Users\Manav Motiramani\Downloads\PatientDetails.csv
+Using slots:        C:\Users\Manav Motiramani\Downloads\slots.csv
+Using appointments: C:\Users\Manav Motiramani\Downloads\appointments.csv
+
+Seeding patients...
+
+STDERR:
+C:\Users\Manav Motiramani\OneDrive\Desktop\Dhurandhar\TEAM-DHURANDHAR\healthlink-project\healthlink\apps\api\scripts\seed_from_csv.py:74: UserWarning: Parsing dates in %d-%m-%Y format when dayfirst=False (the default) was specified. Pass `dayfirst=True` or specify a format to silence this warning.
+  dob=pd.to_datetime(row["dob"]).date() if pd.notna(row.get("dob")) else None,
+Traceback (most recent call last):
+  File "C:\Users\Manav Motiramani\OneDrive\Desktop\Dhurandhar\TEAM-DHURANDHAR\healthlink-project\healthlink\apps\api\scripts\seed_from_csv.py", line 162, in <module>
+    asyncio.run(seed(args.patients, args.slots, args.appointments))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\OneDrive\Desktop\Dhurandhar\TEAM-DHURANDHAR\healthlink-project\healthlink\apps\api\scripts\seed_from_csv.py", line 77, in seed
+    await db.merge(p)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\ext\asyncio\session.py", line 775, in merge
+    return await greenlet_spawn(
+           ^^^^^^^^^^^^^^^^^^^^^
+        self.sync_session.merge, instance, load=load, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 3945, in merge
+    return self._merge(
+           ~~~~~~~~~~~^
+        attributes.instance_state(instance),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        _resolve_conflict_map=_resolve_conflict_map,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4023, in _merge
+    merged = self.get(
+        mapper.class_,
+    ...<2 lines>...
+        options=options,
+    )
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 3680, in get
+    return self._get_impl(
+           ~~~~~~~~~~~~~~^
+        entity,
+        ^^^^^^^
+    ...<7 lines>...
+        bind_arguments=bind_arguments,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 3859, in _get_impl
+    return db_load_fn(
+        self,
+    ...<5 lines>...
+        bind_arguments=bind_arguments,
+    )
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\loading.py", line 695, in load_on_pk_identity
+    session.execute(
+    ~~~~~~~~~~~~~~~^
+        q,
+        ^^
+    ...<2 lines>...
+        bind_arguments=bind_arguments,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 2351, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 2239, in _execute_internal
+    conn = self._connection_for_bind(bind)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 2108, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1187, in _connection_for_bind
+    conn = bind.connect()
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\base.py", line 3293, in connect
+    return self._connection_cls(self)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\base.py", line 143, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\base.py", line 3317, in raw_connection
+    return self.pool.connect()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 448, in connect
+    return _ConnectionFairy._checkout(self)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 1272, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 712, in checkout
+    rec = pool._do_get()
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\impl.py", line 177, in _do_get
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\langhelpers.py", line 121, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\impl.py", line 175, in _do_get
+    return self._create_connection()
+           ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 389, in _create_connection
+    return _ConnectionRecord(self)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 674, in __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 900, in __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\langhelpers.py", line 121, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\pool\base.py", line 896, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\create.py", line 667, in connect
+    return dialect.connect(*cargs_tup, **cparams)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\default.py", line 630, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 955, in connect
+    await_only(creator_fn(*arg, **kw)),
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\asyncpg\connection.py", line 2443, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<22 lines>...
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\asyncpg\connect_utils.py", line 1249, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+    ...<2 lines>...
+    )
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\asyncpg\connect_utils.py", line 1218, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\asyncpg\connect_utils.py", line 1054, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\asyncpg\connect_utils.py", line 1099, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "C:\Users\Manav Motiramani\AppData\Roaming\Python\Python314\site-packages\asyncpg\connect_utils.py", line 969, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        host, port)
+        ^^^^^^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 1173, in create_connection
+    raise exceptions[0]
+  File "C:\Python314\Lib\asyncio\base_events.py", line 1143, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        exceptions, addrinfo, laddr_infos)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 1042, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "C:\Python314\Lib\asyncio\proactor_events.py", line 726, in sock_connect
+    return await self._proactor.connect(sock, address)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\asyncio\windows_events.py", line 804, in _poll
+    value = callback(transferred, key, ov)
+  File "C:\Python314\Lib\asyncio\windows_events.py", line 600, in finish_connect
+    ov.getresult()
+    ~~~~~~~~~~~~^^
+ConnectionRefusedError: [WinError 1225] The remote computer refused the network connection

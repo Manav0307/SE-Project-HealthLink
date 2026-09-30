@@ -1,0 +1,27 @@
+=== NOSHOW MODEL ===
+Type: XGBClassifier
+N_features: 5
+Training features: [np.str_('age'), np.str_('sex_encoded'), np.str_('scheduling_interval'), np.str_('age_group_encoded'), np.str_('appointment_hour')]
+Test (correct col order): prob=0.4323 OK
+
+API noshow_predictor sends: [age, sex_encoded, scheduling_interval, age_group_encoded] (4 features)
+Model trained with: [np.str_('age'), np.str_('sex_encoded'), np.str_('scheduling_interval'), np.str_('age_group_encoded'), np.str_('appointment_hour')] (5 features)
+MISMATCH: API sends 4 features, model expects 5!
+
+=== WAITTIME MODEL ===
+Type: XGBRegressor
+N_features: 5
+Training features: [np.str_('age'), np.str_('sex_encoded'), np.str_('scheduling_interval'), np.str_('appointment_hour'), np.str_('age_group_encoded')]
+Test (correct col order): pred=31.4s = 0.5min OK
+
+API wait_time_predictor sends: [hour_of_day, day_of_week, age, sex_encoded, scheduling_interval] (5 features)
+Model trained with: [np.str_('age'), np.str_('sex_encoded'), np.str_('scheduling_interval'), np.str_('appointment_hour'), np.str_('age_group_encoded')] (5 features)
+MISMATCH: Feature NAMES differ! API uses numpy array without column names, and different feature ORDER!
+
+=== RELIABILITY GRADES ===
+Total patients graded: 36697
+Grade distribution:
+  A: 20447
+  B: 6993
+  D: 6119
+  C: 3138
