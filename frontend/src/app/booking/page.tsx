@@ -32,7 +32,7 @@ function getCalendarDays(year: number, month: number) {
 
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-// Doctor pool for demo
+// Specialist Doctors matching database records
 const DOCTORS = [
   { id: "D001", name: "Dr. Priya Sharma", specialization: "General Medicine" },
   { id: "D002", name: "Dr. Arjun Mehta", specialization: "Cardiology" },
@@ -43,32 +43,11 @@ const DOCTORS = [
 
 const APPOINTMENT_TYPES = [
   "General Consultation",
-  "Follow-up Visit",
+  "Routine Follow-up",
   "Health Checkup",
   "Specialist Consultation",
   "Vaccination",
 ]
-
-/** Generate realistic time slots for a given date */
-function generateDemoSlots(dateStr: string): Slot[] {
-  const slotTimes = [
-    "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-    "12:00", "14:00", "14:30", "15:00", "15:30", "16:00",
-    "16:30", "17:00",
-  ]
-
-  return slotTimes.map((time, i) => ({
-    slot_id: `SLOT-${dateStr}-${i.toString().padStart(2, "0")}`,
-    appointment_date: dateStr,
-    appointment_time: `${time}:00`,
-    status: "free" as const,
-    duration_min: 15,
-    predicted_wait_min: 0,
-    no_show_probability: 0,
-    traffic_level: "low" as const,
-    is_recommended: false,
-  }))
-}
 
 export default function BookingPage() {
   const router = useRouter()
@@ -86,32 +65,41 @@ export default function BookingPage() {
   const [selectedDoctor, setSelectedDoctor] = useState(DOCTORS[0])
   const [appointmentType, setAppointmentType] = useState(APPOINTMENT_TYPES[0])
   const [bookingSuccess, setBookingSuccess] = useState(false)
+  const [bookingError, setBookingError] = useState("")
 
   const calendarDays = getCalendarDays(currentYear, currentMonth)
-
   const selectedDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(selectedDate).padStart(2, "0")}`
 
+  // Fetch real available slots whenever selected date or doctor changes
   useEffect(() => {
     fetchSlots()
-  }, [selectedDateStr])
+  }, [selectedDateStr, selectedDoctor.id])
 
   const fetchSlots = async () => {
     setLoadingSlots(true)
     setSelectedSlot(null)
     setBookingSuccess(false)
+    setBookingError("")
     try {
-      const { data } = await slotsApi.getAvailable(selectedDateStr)
-      if (Array.isArray(data) && data.length > 0) {
+      const { data } = await slotsApi.getAvailable(selectedDateStr, selectedDoctor.id)
+      if (Array.isArray(data)) {
         setSlots(data)
-        setSelectedSlot(data[0])
+        // Auto-select first slot that hasn't passed yet
+        const firstBookable = data.find((s: Slot) => {
+          const isToday =
+            new Date().toDateString() === new Date(`${selectedDateStr}T00:00:00`).toDateString()
+          if (!isToday) return true
+          const [h, m] = s.appointment_time.split(":").map(Number)
+          const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes()
+          return h * 60 + m > nowMinutes
+        })
+        setSelectedSlot(firstBookable ?? null)
       } else {
-        throw new Error("empty")
+        setSlots([])
       }
-    } catch {
-      // Fallback: standard available time slots
-      const demoSlots = generateDemoSlots(selectedDateStr)
-      setSlots(demoSlots)
-      setSelectedSlot(demoSlots[0])
+    } catch (err: any) {
+      console.error("Error fetching slots:", err)
+      setSlots([])
     } finally {
       setLoadingSlots(false)
     }
@@ -121,49 +109,47 @@ export default function BookingPage() {
     if (!selectedSlot || !patient) return
     setIsBooking(true)
     setBookingStep("reserving")
+    setBookingError("")
 
     try {
-      // Try real API first
+      // 1. Reserve slot in database (15s lock)
       const { data: lock } = await slotsApi.reserve(selectedSlot.slot_id, patient.patient_id)
       setBookingStep("confirming")
-      await slotsApi.confirm(lock.lock_id, selectedSlot.slot_id, patient.patient_id, appointmentType, selectedDoctor.id)
-    } catch {
-      // Demo fallback — save locally
-      setBookingStep("confirming")
-      await new Promise((r) => setTimeout(r, 600)) // Simulate network
+
+      // 2. Confirm booking in database
+      const { data: appt } = await slotsApi.confirm(
+        lock.lock_id,
+        selectedSlot.slot_id,
+        patient.patient_id,
+        appointmentType,
+        selectedDoctor.id
+      )
+
+      // 3. Save to local store so appointment shows immediately across UI
+      const confirmedAppt: Appointment = {
+        ...appt,
+        doctor: {
+          doctor_id: selectedDoctor.id,
+          name: selectedDoctor.name,
+          specialization: selectedDoctor.specialization,
+          rating: 4.9,
+          profile_image_url: null,
+          avg_session_duration_min: 15,
+        },
+      }
+      addLocalAppointment(confirmedAppt)
+
+      setBookingSuccess(true)
+
+      // 4. Refetch database slots: the booked slot will be excluded from the database results!
+      await fetchSlots()
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || "Booking failed. The slot may have just been taken."
+      setBookingError(msg)
+    } finally {
+      setIsBooking(false)
+      setBookingStep("idle")
     }
-
-    // Always persist locally so appointment shows in history
-    const newAppt: Appointment = {
-      appointment_id: `APT-${Date.now()}`,
-      slot_id: selectedSlot.slot_id,
-      appointment_date: selectedDateStr,
-      appointment_time: selectedSlot.appointment_time,
-      portal_status: "upcoming",
-      appointment_type: appointmentType,
-      reschedule_count: 0,
-      waiting_time: 0,
-      appointment_duration: selectedSlot.duration_min || 15,
-      doctor_id: selectedDoctor.id,
-      summary_url: null,
-      doctor: {
-        doctor_id: selectedDoctor.id,
-        name: selectedDoctor.name,
-        specialization: selectedDoctor.specialization,
-        rating: 4.8,
-        profile_image_url: null,
-        avg_session_duration_min: selectedSlot.duration_min || 15,
-      },
-    }
-    addLocalAppointment(newAppt)
-
-    setIsBooking(false)
-    setBookingStep("idle")
-    setBookingSuccess(true)
-
-    // Remove booked slot from list
-    setSlots((prev) => prev.filter((s) => s.slot_id !== selectedSlot.slot_id))
-    setSelectedSlot(null)
   }
 
   const formatTime = (time: string) => {
@@ -173,6 +159,21 @@ export default function BookingPage() {
     const hour = h % 12 || 12
     return `${hour}:${String(m).padStart(2, "0")} ${ampm}`
   }
+
+  // Returns true if this slot's time has already passed today
+  const isSlotPast = (slot: Slot): boolean => {
+    const isToday =
+      currentYear === today.getFullYear() &&
+      currentMonth === today.getMonth() &&
+      selectedDate === today.getDate()
+    if (!isToday) return false
+    const [h, m] = slot.appointment_time.split(":").map(Number)
+    const slotMinutes = h * 60 + m
+    const nowMinutes = today.getHours() * 60 + today.getMinutes()
+    return slotMinutes <= nowMinutes
+  }
+
+  const bookableSlots = slots.filter((s) => !isSlotPast(s))
 
   return (
     <AppShell>
@@ -189,8 +190,8 @@ export default function BookingPage() {
               <span className="material-symbols-outlined text-white text-[20px]">check</span>
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold text-[#1b5e20]">Appointment Booked Successfully!</p>
-              <p className="text-xs text-[#2e7d32] mt-0.5">Confirmation has been recorded in your patient schedule.</p>
+              <p className="text-sm font-bold text-[#1b5e20]">Appointment Confirmed & Saved in Database!</p>
+              <p className="text-xs text-[#2e7d32] mt-0.5">The slot has been reserved for you and removed from public availability.</p>
             </div>
             <button
               onClick={() => router.push("/appointments")}
@@ -201,8 +202,16 @@ export default function BookingPage() {
           </div>
         )}
 
+        {/* ── Error Banner ─────────────────────────── */}
+        {bookingError && (
+          <div className="bg-[#ffebee] border border-[#ffcdd2] rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
+            <span className="material-symbols-outlined text-[#c62828] text-[20px]">error</span>
+            <p className="text-xs font-medium text-[#c62828]">{bookingError}</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-[1fr_1fr] gap-8">
-          {/* ── Left: Calendar + Options ──────────────── */}
+          {/* ── Left: Calendar + Doctor + Type ─────────── */}
           <div className="space-y-6">
             <section className="hl-card p-6">
               <div className="flex items-center gap-2 mb-5">
@@ -334,51 +343,66 @@ export default function BookingPage() {
           {/* ── Right: Time Slots + Summary ────────────── */}
           <div className="space-y-6">
             <section>
-              <div className="flex items-center gap-2 mb-5">
-                <span className="material-symbols-outlined text-[18px] text-[#474747]">schedule</span>
-                <h2 className="text-sm font-bold text-black uppercase tracking-[0.05em]">2. Select Time Slot</h2>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-[#474747]">schedule</span>
+                  <h2 className="text-sm font-bold text-black uppercase tracking-[0.05em]">2. Available Time Slots</h2>
+                </div>
+                <span className="text-xs text-[#777777] font-medium">
+                  {bookableSlots.length} available
+                </span>
               </div>
 
               {loadingSlots ? (
                 <div className="hl-card p-8 text-center">
                   <div className="w-6 h-6 border-2 border-[#dadada] border-t-black rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-xs text-[#777777]">Loading available slots...</p>
+                  <p className="text-xs text-[#777777]">Querying database for open slots...</p>
                 </div>
               ) : slots.length === 0 ? (
                 <div className="hl-card p-8 text-center">
                   <span className="material-symbols-outlined text-[32px] text-[#c6c6c6] mb-2 block">event_busy</span>
-                  <p className="text-sm text-[#777777]">No slots available for this date</p>
+                  <p className="text-sm font-semibold text-black">No open slots available</p>
+                  <p className="text-xs text-[#777777] mt-1">All slots for {selectedDoctor.name} on this date are booked. Please choose another date or doctor.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {slots.map((slot) => {
                     const isSelected = selectedSlot?.slot_id === slot.slot_id
+                    const isPast = isSlotPast(slot)
                     return (
                       <button
                         key={slot.slot_id}
-                        onClick={() => setSelectedSlot(slot)}
+                        onClick={() => !isPast && setSelectedSlot(slot)}
+                        disabled={isPast}
+                        title={isPast ? "This time slot has already passed" : undefined}
                         className={`
                           text-left p-4 rounded-2xl transition-all duration-200
-                          ${isSelected
-                            ? "bg-black text-white shadow-[0_2px_12px_rgba(0,0,0,0.2)] ring-2 ring-black"
-                            : "bg-[#f3f3f4] hover:bg-[#e8e8e8]"
+                          ${isPast
+                            ? "bg-[#f3f3f4] opacity-40 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-black text-white shadow-[0_2px_12px_rgba(0,0,0,0.2)] ring-2 ring-black"
+                              : "bg-[#f3f3f4] hover:bg-[#e8e8e8]"
                           }
                         `}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <p className={`text-sm font-bold ${isSelected ? "text-white" : "text-black"}`}>
+                          <p className={`text-sm font-bold ${isSelected && !isPast ? "text-white" : "text-black"}`}>
                             {formatTime(slot.appointment_time)}
                           </p>
                           <span className={`text-[8px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold ${
-                            isSelected ? "bg-white text-black" : "bg-[#e8f5e9] text-[#2e7d32]"
+                            isPast
+                              ? "bg-[#e8e8e8] text-[#aaaaaa]"
+                              : isSelected
+                                ? "bg-white text-black"
+                                : "bg-[#e8f5e9] text-[#2e7d32]"
                           }`}>
-                            Available
+                            {isPast ? "Passed" : "Available"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-[14px] opacity-60">timer</span>
-                          <p className={`text-xs ${isSelected ? "text-white/80" : "text-[#777777]"}`}>
-                            {slot.duration_min || 15} mins consultation
+                          <p className={`text-xs ${isSelected && !isPast ? "text-white/80" : "text-[#777777]"}`}>
+                            {slot.duration_min || 15} mins
                           </p>
                         </div>
                       </button>
@@ -389,7 +413,7 @@ export default function BookingPage() {
             </section>
 
             {/* Summary + Confirm */}
-            {selectedSlot && (
+            {selectedSlot && !isSlotPast(selectedSlot) && (
               <section className="hl-card p-6 animate-fade-in">
                 <p className="hl-section-title mb-4">Booking Summary</p>
                 <div className="space-y-3 mb-5">
@@ -424,9 +448,6 @@ export default function BookingPage() {
                       <p className="text-sm font-semibold text-[#1a1c1c]">{appointmentType}</p>
                     </div>
                   </div>
-                  <div className="flex gap-4 text-xs text-[#777777]">
-                    <span>Duration: <strong className="text-[#1a1c1c]">{selectedSlot.duration_min || 15} min</strong></span>
-                  </div>
                 </div>
 
                 <button
@@ -437,7 +458,7 @@ export default function BookingPage() {
                   {isBooking ? (
                     <span className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      {bookingStep === "reserving" ? "Reserving Slot..." : "Confirming Appointment..."}
+                      {bookingStep === "reserving" ? "Reserving in Database..." : "Confirming Appointment..."}
                     </span>
                   ) : (
                     <>
@@ -446,9 +467,6 @@ export default function BookingPage() {
                     </>
                   )}
                 </button>
-                <p className="text-[10px] text-[#777777] mt-3 text-center leading-relaxed">
-                  A booking confirmation will be stored in your patient profile.
-                </p>
               </section>
             )}
           </div>

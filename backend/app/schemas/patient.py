@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 
@@ -26,7 +26,7 @@ class PatientOut(BaseModel):
 
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     emergency_contact: Optional[str] = None
     blood_type: Optional[str] = None
 

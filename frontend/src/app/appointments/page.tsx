@@ -3,13 +3,19 @@ import AppShell from "@/components/layout/AppShell"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useAuthStore } from "@/store/auth-store"
-import { useBookingStore } from "@/store/booking-store"
 import { appointmentsApi } from "@/lib/api"
 import type { Appointment } from "@/types"
 
+const DOCTORS_MAP: Record<string, { name: string; specialization: string }> = {
+  D001: { name: "Dr. Priya Sharma", specialization: "General Medicine" },
+  D002: { name: "Dr. Arjun Mehta", specialization: "Cardiology" },
+  D003: { name: "Dr. Neha Patel", specialization: "Dermatology" },
+  D004: { name: "Dr. Ravi Kumar", specialization: "Orthopedics" },
+  D005: { name: "Dr. Sunita Verma", specialization: "ENT Specialist" },
+}
+
 export default function AppointmentsPage() {
   const { patient } = useAuthStore()
-  const { localAppointments, cancelLocalAppointment } = useBookingStore()
   const [apiUpcoming, setApiUpcoming] = useState<Appointment[]>([])
   const [apiPast, setApiPast] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,10 +34,10 @@ export default function AppointmentsPage() {
         appointmentsApi.list("completed"),
         appointmentsApi.list("missed"),
       ])
-      setApiUpcoming(upRes.data)
-      setApiPast([...compRes.data, ...missedRes.data])
-    } catch {
-      // API unavailable — will use local data only
+      setApiUpcoming(upRes.data || [])
+      setApiPast([...(compRes.data || []), ...(missedRes.data || [])])
+    } catch (err) {
+      console.error("Error fetching appointments from database:", err)
       setApiUpcoming([])
       setApiPast([])
     } finally {
@@ -39,31 +45,19 @@ export default function AppointmentsPage() {
     }
   }
 
-  // Merge local + API appointments, local ones first
-  const allUpcoming = [
-    ...localAppointments.filter((a) => a.portal_status === "upcoming"),
-    ...apiUpcoming.filter(
-      (a) => !localAppointments.some((la) => la.appointment_id === a.appointment_id)
-    ),
-  ]
-
-  const allPast = [
-    ...localAppointments.filter((a) => a.portal_status === "completed" || a.portal_status === "missed" || a.portal_status === "cancelled"),
-    ...apiPast.filter(
-      (a) => !localAppointments.some((la) => la.appointment_id === a.appointment_id)
-    ),
-  ]
+  // Database is the single source of truth — no localStorage fallback
+  const allUpcoming = apiUpcoming
+  const allPast = apiPast
 
   const handleCancel = async (appointmentId: string) => {
     if (!confirm("Are you sure you want to cancel this appointment?")) return
     setCancellingId(appointmentId)
     try {
-      // Try API cancel
       await appointmentsApi.cancel(appointmentId, "Patient requested cancellation")
-    } catch {
-      // Fallback: cancel locally
+    } catch (err) {
+      console.error("Cancel API error:", err)
     }
-    cancelLocalAppointment(appointmentId)
+    await fetchAppointments()
     setCancellingId(null)
   }
 
@@ -85,12 +79,15 @@ export default function AppointmentsPage() {
 
   const getDoctorDisplay = (appt: Appointment) => {
     if (appt.doctor?.name) return appt.doctor.name
+    if (appt.doctor_id && DOCTORS_MAP[appt.doctor_id]) return DOCTORS_MAP[appt.doctor_id].name
     if (appt.doctor_id) return `Doctor ${appt.doctor_id}`
     return "Specialist"
   }
 
   const getSpecialization = (appt: Appointment) => {
-    return appt.doctor?.specialization || ""
+    if (appt.doctor?.specialization) return appt.doctor.specialization
+    if (appt.doctor_id && DOCTORS_MAP[appt.doctor_id]) return DOCTORS_MAP[appt.doctor_id].specialization
+    return ""
   }
 
   const statusBadge = (status: string) => {
@@ -114,7 +111,7 @@ export default function AppointmentsPage() {
         <div className="animate-fade-in flex items-center justify-center h-[60vh]">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-[#dadada] border-t-black rounded-full animate-spin mx-auto mb-4" />
-            <p className="hl-label">Loading appointments...</p>
+            <p className="hl-label">Loading appointments from database...</p>
           </div>
         </div>
       </AppShell>
@@ -141,79 +138,64 @@ export default function AppointmentsPage() {
           </Link>
         </div>
 
-        {/* ── Stats ───────────────────────────────────── */}
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: "Upcoming", value: allUpcoming.length, icon: "event_upcoming", color: "text-[#1565c0]" },
-            { label: "Completed", value: allPast.filter((a) => a.portal_status === "completed").length, icon: "check_circle", color: "text-[#2e7d32]" },
-            { label: "Cancelled", value: allPast.filter((a) => a.portal_status === "cancelled").length, icon: "cancel", color: "text-[#777777]" },
-            { label: "Total", value: allUpcoming.length + allPast.length, icon: "event_note", color: "text-black" },
-          ].map((stat) => (
-            <div key={stat.label} className="hl-card p-4 text-center">
-              <span className={`material-symbols-outlined text-[24px] ${stat.color} mb-1 block`}>{stat.icon}</span>
-              <p className="text-2xl font-bold text-black">{stat.value}</p>
-              <p className="hl-label mt-1">{stat.label}</p>
+        {/* ── Upcoming Appointments ───────────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#1565c0]" />
+            <h2 className="text-sm font-bold text-black uppercase tracking-[0.05em]">Upcoming Appointments</h2>
+            <span className="text-xs text-[#777777] font-medium">({allUpcoming.length})</span>
+          </div>
+
+          {allUpcoming.length === 0 ? (
+            <div className="hl-card p-8 text-center">
+              <span className="material-symbols-outlined text-[36px] text-[#c6c6c6] mb-2 block">event_available</span>
+              <p className="text-sm text-[#777777]">No upcoming appointments scheduled.</p>
+              <Link href="/booking" className="hl-btn-primary text-xs px-5 py-2.5 mt-4 inline-flex">
+                Book a Consultation
+              </Link>
             </div>
-          ))}
-        </div>
-
-        {/* ── Upcoming Journey ─────────────────────────── */}
-        <section>
-          <h2 className="hl-section-title mb-5">Upcoming Appointments</h2>
-          {allUpcoming.length > 0 ? (
-            <div className="grid grid-cols-2 gap-6">
-              {allUpcoming.map((appt, i) => (
-                <div
-                  key={appt.appointment_id}
-                  className="hl-card p-6 group hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)] transition-all duration-300 animate-fade-in-up"
-                  style={{ animationDelay: `${i * 80}ms` }}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#e8e8e8] flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[24px] text-[#474747]" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+          ) : (
+            <div className="space-y-3">
+              {allUpcoming.map((appt) => (
+                <div key={appt.appointment_id} className="hl-card p-6 flex items-center justify-between gap-6 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all">
+                  <div className="flex items-center gap-5">
+                    <div className="bg-[#f3f3f4] rounded-2xl p-4 text-center min-w-[70px]">
+                      <p className="text-xs font-semibold text-[#777777] uppercase">
+                        {new Date(appt.appointment_date + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}
+                      </p>
+                      <p className="text-2xl font-bold text-black">
+                        {new Date(appt.appointment_date + "T00:00:00").getDate()}
+                      </p>
                     </div>
-                    <span className={`text-[9px] uppercase tracking-widest font-bold px-3 py-1 rounded-full ${statusBadge("upcoming")}`}>
-                      Upcoming
-                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-black">{getDoctorDisplay(appt)}</h3>
+                        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${statusBadge(appt.portal_status)}`}>
+                          {appt.portal_status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#777777] mt-0.5">{getSpecialization(appt)} • {appt.appointment_type}</p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-[#474747]">
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#777777]">schedule</span>
+                          {formatTime(appt.appointment_time)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#777777]">location_on</span>
+                          West Wing, Room 402
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  <p className="text-xs text-[#777777] font-semibold uppercase tracking-[0.05em] mb-1">{getDoctorDisplay(appt)}</p>
-                  {getSpecialization(appt) && (
-                    <p className="text-[10px] text-[#999] mb-1">{getSpecialization(appt)}</p>
-                  )}
-                  <h3 className="text-lg font-bold text-black mb-3">{appt.appointment_type}</h3>
-
-                  <div className="flex items-center gap-4 text-xs text-[#777777]">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">calendar_today</span>
-                      {formatDate(appt.appointment_date)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">schedule</span>
-                      {formatTime(appt.appointment_time)}
-                    </span>
-                  </div>
-
-                  {(appt.waiting_time !== null || appt.appointment_duration !== null) && (
-                    <div className="flex gap-4 mt-3 text-xs">
-                      {appt.waiting_time !== null && (
-                        <span className="text-[#777777]">
-                          Est. Wait: <span className="font-semibold text-[#1a1c1c]">{Math.round(appt.waiting_time)} min</span>
-                        </span>
-                      )}
-                      {appt.appointment_duration !== null && (
-                        <span className="text-[#777777]">
-                          Duration: <span className="font-semibold text-[#1a1c1c]">{Math.round(appt.appointment_duration)} min</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex gap-3 mt-5">
+                  <div className="flex items-center gap-3">
+                    <Link href={`/appointments/${appt.appointment_id}/reschedule`}>
+                      <button className="hl-btn-outline text-xs px-4 py-2">Reschedule</button>
+                    </Link>
                     <button
                       onClick={() => handleCancel(appt.appointment_id)}
                       disabled={cancellingId === appt.appointment_id}
-                      className="text-xs text-[#777777] hover:text-[#ba1a1a] transition-colors px-4 py-2 rounded-full hover:bg-[#ffdad6]/30 font-medium uppercase tracking-[0.03em] disabled:opacity-50"
+                      className="text-xs font-semibold text-[#ba1a1a] hover:bg-[#ffdad6]/40 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
                     >
                       {cancellingId === appt.appointment_id ? "Cancelling..." : "Cancel"}
                     </button>
@@ -221,74 +203,56 @@ export default function AppointmentsPage() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="hl-card p-8 text-center">
-              <span className="material-symbols-outlined text-[48px] text-[#c6c6c6] mb-3 block">event_available</span>
-              <p className="text-sm text-[#777777] mb-4">No upcoming appointments</p>
-              <Link href="/booking" className="hl-btn-primary text-xs px-5 py-2.5">Book Appointment</Link>
-            </div>
           )}
         </section>
 
-        {/* ── Clinical History / Past ─────────────────── */}
-        <section>
-          <h2 className="hl-section-title mb-5">Clinical History</h2>
-          {allPast.length > 0 ? (
-            <div className="grid grid-cols-3 gap-6">
+        {/* ── Appointment History ──────────────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#2e7d32]" />
+            <h2 className="text-sm font-bold text-black uppercase tracking-[0.05em]">Consultation History</h2>
+            <span className="text-xs text-[#777777] font-medium">({allPast.length})</span>
+          </div>
+
+          {allPast.length === 0 ? (
+            <div className="hl-card p-8 text-center">
+              <span className="material-symbols-outlined text-[36px] text-[#c6c6c6] mb-2 block">history</span>
+              <p className="text-sm text-[#777777]">No past appointment records found.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
               {allPast.map((appt) => (
-                <div key={appt.appointment_id} className="hl-card p-6 group hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)] transition-all duration-300">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#f3f3f4] flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[24px] text-[#777777]" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                <div key={appt.appointment_id} className="hl-card p-6 flex items-center justify-between gap-6 opacity-90 hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-5">
+                    <div className="bg-[#f3f3f4] rounded-2xl p-4 text-center min-w-[70px]">
+                      <p className="text-xs font-semibold text-[#777777] uppercase">
+                        {new Date(appt.appointment_date + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}
+                      </p>
+                      <p className="text-2xl font-bold text-black">
+                        {new Date(appt.appointment_date + "T00:00:00").getDate()}
+                      </p>
                     </div>
-                    <span className={`text-[9px] uppercase tracking-widest font-bold px-3 py-1 rounded-full ${statusBadge(appt.portal_status)}`}>
-                      {appt.portal_status === "completed" ? "Completed" : appt.portal_status === "cancelled" ? "Cancelled" : "Missed"}
-                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-black">{getDoctorDisplay(appt)}</h3>
+                        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${statusBadge(appt.portal_status)}`}>
+                          {appt.portal_status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#777777] mt-0.5">{getSpecialization(appt)} • {appt.appointment_type}</p>
+                      <p className="text-[11px] text-[#777777] mt-1">
+                        Completed at {formatTime(appt.appointment_time)} • Duration: {appt.appointment_duration || 15} mins
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="hl-label mb-1">{getDoctorDisplay(appt)}</p>
-                  <h3 className="text-base font-bold text-[#474747] mb-2">{appt.appointment_type}</h3>
-
-                  <div className="flex items-center gap-1 text-xs text-[#777777]">
-                    <span className="material-symbols-outlined text-[14px]">
-                      {appt.portal_status === "completed" ? "check_circle" : appt.portal_status === "cancelled" ? "cancel" : "warning"}
-                    </span>
-                    {formatDate(appt.appointment_date)} • {formatTime(appt.appointment_time)}
-                  </div>
-
-                  <div className="mt-4">
-                    {appt.portal_status === "completed" ? (
-                      <button className="hl-btn-outline text-xs px-4 py-2 w-full">View Summary</button>
-                    ) : appt.portal_status === "cancelled" ? (
-                      <Link href="/booking" className="hl-btn-outline text-xs px-4 py-2 w-full text-center block">
-                        Rebook
-                      </Link>
-                    ) : (
-                      <Link href="/booking" className="hl-btn-outline text-xs px-4 py-2 w-full text-center block">
-                        Rebook Now
-                      </Link>
-                    )}
-                  </div>
+                  <span className="text-xs font-semibold text-[#777777] bg-[#f3f3f4] px-3 py-1.5 rounded-xl">
+                    Archived
+                  </span>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="hl-card p-6 text-center">
-              <p className="text-xs text-[#777777]">No past appointments yet</p>
-            </div>
           )}
-
-          {/* Schedule New Care CTA */}
-          <Link
-            href="/booking"
-            className="rounded-[2rem] border-2 border-dashed border-[#c6c6c6] p-6 flex items-center justify-center text-center hover:border-[#777777] hover:bg-white/50 transition-all duration-300 cursor-pointer group mt-6"
-          >
-            <div>
-              <span className="material-symbols-outlined text-[32px] text-[#c6c6c6] group-hover:text-[#474747] transition-colors mb-2 block">add</span>
-              <p className="hl-section-title mb-1">Schedule New Care</p>
-              <p className="text-xs text-[#777777]">Find a specialist and book your next consultation</p>
-            </div>
-          </Link>
         </section>
       </div>
     </AppShell>

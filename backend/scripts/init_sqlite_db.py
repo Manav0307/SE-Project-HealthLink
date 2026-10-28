@@ -239,18 +239,21 @@ def init_db():
             pid, sex, age, agrp, appt_type, doc_id, "completed", 0, None, None, None
         ))
 
-    # Generate 120+ open time slots across the next 14 days
+    # Generate open time slots for all 5 doctors across the next 14 days
     times = [
         "09:00:00", "09:30:00", "10:00:00", "10:30:00",
         "11:00:00", "11:30:00", "14:00:00", "14:30:00",
         "15:00:00", "15:30:00", "16:00:00", "16:30:00"
     ]
     docs = ["D001", "D002", "D003", "D004", "D005"]
+    booked_slots_set = {(str(s[1]), str(s[2]), s[4]) for s in slots}
 
     for d_offset in range(0, 14):
         target_d = str(today + timedelta(days=d_offset))
         for t in times:
-            for doc in docs[:2]:  # 2 doctors available per slot
+            for doc in docs:
+                if (target_d, t, doc) in booked_slots_set:
+                    continue  # Already booked, so slot remains booked and excluded from available
                 s_id = f"SLOT{str(slot_id_seq).zfill(5)}"
                 slot_id_seq += 1
                 slots.append((s_id, target_d, t, 1, doc, "free", None, None, 0.0, 0.0, "low", 15))

@@ -1,10 +1,10 @@
 """
 SlotService — slot reservation with optimistic locking
-Supports PostgreSQL and SQLite
+Supports PostgreSQL and SQLite cleanly with standardized parameters.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date as dt_date
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 from fastapi import HTTPException, status
 import uuid
 
@@ -19,14 +19,27 @@ class SlotService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_available_slots(self, date: str, doctor_id: str = None):
-        query = select(Slot).where(
-            Slot.appointment_date == date,
+    async def get_available_slots(self, date_val: str, doctor_id: str = None):
+        clean_date = str(date_val).strip()
+        try:
+            d_obj = dt_date.fromisoformat(clean_date)
+        except Exception:
+            d_obj = None
+
+        conditions = [
             Slot.status == "free",
             Slot.is_available == True,
-        )
+        ]
+
+        if d_obj:
+            conditions.append(or_(Slot.appointment_date == d_obj, Slot.appointment_date == clean_date))
+        else:
+            conditions.append(Slot.appointment_date == clean_date)
+
         if doctor_id:
-            query = query.where(Slot.doctor_id == doctor_id)
+            conditions.append(Slot.doctor_id == doctor_id)
+
+        query = select(Slot).where(*conditions).order_by(Slot.appointment_time.asc())
         result = await self.db.execute(query)
         return result.scalars().all()
 
@@ -36,7 +49,6 @@ class SlotService:
         Uses FOR UPDATE SKIP LOCKED on PostgreSQL, standard select on SQLite.
         """
         query = select(Slot).where(Slot.slot_id == slot_id, Slot.status == "free")
-        # Check if database dialect supports with_for_update
         bind = self.db.bind
         if bind and getattr(bind, "dialect", None) and bind.dialect.name != "sqlite":
             query = query.with_for_update(skip_locked=True)
@@ -47,7 +59,7 @@ class SlotService:
         if not slot:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Slot just taken by another patient. Please select another."
+                detail="Slot is no longer available. Please select another time."
             )
 
         lock_expires = datetime.now(timezone.utc) + timedelta(seconds=LOCK_DURATION_SECONDS)
@@ -72,26 +84,29 @@ class SlotService:
         }
 
     async def confirm_slot(self, slot_id: str, patient_id: str, appointment_type: str, doctor_id: str = None) -> Appointment:
-        """Verify lock still valid and convert to confirmed booking"""
+        """Verify slot lock or availability, and convert to confirmed booking"""
         result = await self.db.execute(
             select(Slot).where(
                 Slot.slot_id == slot_id,
-                Slot.status == "locked",
-                Slot.locked_by_patient_id == patient_id,
+                or_(
+                    Slot.status == "locked",
+                    Slot.status == "free"
+                )
             )
         )
         slot = result.scalar_one_or_none()
         if not slot:
-            # Also allow direct booking if slot was free
-            free_res = await self.db.execute(
-                select(Slot).where(Slot.slot_id == slot_id, Slot.status == "free")
-            )
-            slot = free_res.scalar_one_or_none()
-            if not slot:
-                raise HTTPException(status_code=409, detail="Slot is no longer available.")
+            raise HTTPException(status_code=409, detail="Slot is no longer available.")
 
+        # Mark slot as booked and unavailable
         await self.db.execute(
-            update(Slot).where(Slot.slot_id == slot_id).values(status="booked", is_available=False)
+            update(Slot)
+            .where(Slot.slot_id == slot_id)
+            .values(
+                status="booked",
+                is_available=False,
+                locked_by_patient_id=patient_id,
+            )
         )
 
         appt_id = f"APT{str(uuid.uuid4())[:6].upper()}"

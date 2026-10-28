@@ -1,16 +1,18 @@
-# Minimal Prototype Dependencies (Flexible versions for Python 3.14)
+# Minimal Prototype Dependencies (Python 3.14 compatible)
 fastapi
 uvicorn[standard]
 python-multipart
 
-# Database
-sqlalchemy
+# Database & Async Engine (greenlet required for SQLAlchemy asyncio)
+sqlalchemy[asyncio]
+greenlet
 aiosqlite
 asyncpg
 
 # Config & Validation
 pydantic
 pydantic-settings
+email-validator
 python-dotenv
 
 # Auth & Tokens
