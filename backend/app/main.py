@@ -11,13 +11,15 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-# ... rest of your imports
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.db.session import engine
+
+# PROTOTYPE FIX: Import all models so SQLAlchemy registers them
+# before create_all runs. Without this, tables are never created.
+import app.models  # noqa: F401
+
 from app.routers import (
     auth, patients, doctors, slots,
     appointments, queue, notifications,
@@ -37,10 +39,11 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     print("  ✓ Database tables verified")
 
-    # Load ML models into memory
-    from app.ml.model_loader import ModelLoader
-    ModelLoader.load_all()
-    print("  ✓ ML models loaded")
+    # PROTOTYPE: ML model loading disabled (no .pkl files available)
+    # Original code preserved — uncomment when ML models are trained:
+    # from app.ml.model_loader import ModelLoader
+    # ModelLoader.load_all()
+    print("  ⏭ ML models skipped (prototype mode)")
 
     yield
     # Shutdown

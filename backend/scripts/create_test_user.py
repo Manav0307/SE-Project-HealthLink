@@ -4,7 +4,7 @@ scripts/create_test_user.py
 Standalone utility — inserts a test patient with known login credentials.
 Useful for local dev without running the full CSV seed.
 
-Run from the api/ directory:
+Run from backend/ directory:
     python scripts/create_test_user.py
     python scripts/create_test_user.py --email me@example.com --password mypassword
 """
@@ -12,26 +12,20 @@ import asyncio
 import argparse
 import os
 import sys
+
 # Fix Windows terminal encoding so emoji output doesn't crash the script
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, func
-
-from app.core.config import settings
+from app.db.session import AsyncSessionLocal, engine
 from app.core.security import hash_password
 from app.models.patient import Patient
 
 
 async def create_test_user(email: str, password: str, name: str):
-    db_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-    engine = create_async_engine(db_url, echo=False)
-    SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with SessionLocal() as db:
+    async with AsyncSessionLocal() as db:
         # Check if email already used
         result = await db.execute(select(Patient).where(Patient.email == email))
         existing = result.scalar_one_or_none()

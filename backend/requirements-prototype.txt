@@ -1,0 +1,21 @@
+# Minimal Prototype Dependencies (Flexible versions for Python 3.14)
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlalchemy
+aiosqlite
+asyncpg
+
+# Config & Validation
+pydantic
+pydantic-settings
+python-dotenv
+
+# Auth & Tokens
+python-jose[cryptography]
+passlib
+
+# Real-time WebSocket (In-Memory)
+python-socketio

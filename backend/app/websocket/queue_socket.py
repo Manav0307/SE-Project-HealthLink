@@ -1,16 +1,16 @@
 """
 Socket.io server for Live Queue real-time updates.
-Redis adapter enables horizontal scaling.
-All patients in clinic_{clinic_id} room receive position updates.
+PROTOTYPE MODE: Uses in-memory transport instead of Redis adapter.
+Original Redis adapter code preserved in comments.
 """
 import socketio
-from app.core.config import settings
 
-# Create async Socket.io server with Redis pub/sub adapter
+# PROTOTYPE: Use simple in-memory mode (no Redis needed)
+# Original: client_manager=socketio.AsyncRedisManager(settings.REDIS_URL)
 sio = socketio.AsyncServer(
     async_mode="asgi",
     cors_allowed_origins="*",
-    client_manager=socketio.AsyncRedisManager(settings.REDIS_URL),
+    # client_manager=socketio.AsyncRedisManager(settings.REDIS_URL),  # PROTOTYPE: disabled
 )
 sio_app = socketio.ASGIApp(sio)
 
