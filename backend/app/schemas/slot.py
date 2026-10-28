@@ -7,11 +7,11 @@ class SlotOut(BaseModel):
     slot_id: str
     appointment_date: date
     appointment_time: time
-    status: str
-    duration_min: int
-    predicted_wait_min: float
-    no_show_probability: float
-    traffic_level: str
+    status: str = "free"
+    duration_min: int = 15
+    predicted_wait_min: Optional[float] = 0.0
+    no_show_probability: Optional[float] = 0.0
+    traffic_level: Optional[str] = "normal"
     is_recommended: bool = False
 
     class Config:

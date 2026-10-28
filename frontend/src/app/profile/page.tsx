@@ -46,10 +46,10 @@ export default function ProfilePage() {
       // Demo fallback
       const totalLocal = localAppointments.length
       setInsights({
-        avg_wait_time_min: patient.avg_wait_time_min || 8.3,
-        punctuality_score: patient.punctuality_score || 92.5,
-        reliability_grade: patient.reliability_grade || "A",
-        reliability_percentile: 85,
+        avg_wait_time_min: 0,
+        punctuality_score: 95,
+        reliability_grade: "Active",
+        reliability_percentile: 90,
         total_appointments: totalLocal || 0,
         no_show_count: 0,
       })
@@ -168,13 +168,12 @@ export default function ProfilePage() {
         </section>
 
         {/* ── Quick Stats Row ─────────────────────────── */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Avg Wait", value: `${insights?.avg_wait_time_min?.toFixed(1) ?? "0"}m`, icon: "timer" },
-            { label: "Punctuality", value: `${insights?.punctuality_score?.toFixed(0) ?? "0"}%`, icon: "schedule" },
-            { label: "Appointments", value: `${insights?.total_appointments ?? localAppointments.length}`, icon: "event_note" },
-            { label: "No-Shows", value: `${insights?.no_show_count ?? 0}`, icon: "event_busy" },
-            { label: "Reliability", value: insights?.reliability_grade ?? patient?.reliability_grade ?? "—", icon: "verified" },
+            { label: "Total Booked", value: `${localAppointments.length + history.length}`, icon: "event_note" },
+            { label: "Completed", value: `${localAppointments.filter(a => a.portal_status === "completed").length + history.filter(a => a.portal_status === "completed").length}`, icon: "task_alt" },
+            { label: "Upcoming", value: `${localAppointments.filter(a => a.portal_status === "upcoming").length}`, icon: "upcoming" },
+            { label: "Punctuality", value: `${insights?.punctuality_score?.toFixed(0) ?? "95"}%`, icon: "schedule" },
           ].map((stat) => (
             <div key={stat.label} className="hl-card p-4 text-center">
               <span className="material-symbols-outlined text-[20px] text-[#474747] mb-1 block">{stat.icon}</span>
@@ -249,9 +248,7 @@ export default function ProfilePage() {
                   type="number"
                   value={editAge}
                   onChange={(e) => setEditAge(e.target.value)}
-                  placeholder="Enter age"
-                  min="1"
-                  max="120"
+                  placeholder="e.g. 28"
                   className="w-full bg-[#f3f3f4] rounded-xl px-4 py-3 text-sm font-medium text-[#1a1c1c] placeholder:text-[#c6c6c6] outline-none focus:ring-2 focus:ring-black/10 transition-all"
                 />
               </div>
@@ -260,7 +257,7 @@ export default function ProfilePage() {
               <div>
                 <label className="hl-label block mb-1.5">Emergency Contact</label>
                 <input
-                  type="text"
+                  type="tel"
                   value={editEmergency}
                   onChange={(e) => setEditEmergency(e.target.value)}
                   placeholder="+1 555-0100"
@@ -271,26 +268,23 @@ export default function ProfilePage() {
               {/* Blood Type */}
               <div>
                 <label className="hl-label block mb-1.5">Blood Type</label>
-                <select
+                <input
+                  type="text"
                   value={editBloodType}
                   onChange={(e) => setEditBloodType(e.target.value)}
-                  className="w-full bg-[#f3f3f4] rounded-xl px-4 py-3 text-sm font-medium text-[#1a1c1c] outline-none focus:ring-2 focus:ring-black/10 transition-all appearance-none cursor-pointer"
-                >
-                  <option value="">Select</option>
-                  {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bt) => (
-                    <option key={bt} value={bt}>{bt}</option>
-                  ))}
-                </select>
+                  placeholder="e.g. O+"
+                  className="w-full bg-[#f3f3f4] rounded-xl px-4 py-3 text-sm font-medium text-[#1a1c1c] placeholder:text-[#c6c6c6] outline-none focus:ring-2 focus:ring-black/10 transition-all"
+                />
               </div>
 
-              {/* Insurance */}
+              {/* Insurance Provider */}
               <div className="col-span-2">
                 <label className="hl-label block mb-1.5">Insurance Provider</label>
                 <input
                   type="text"
                   value={editInsurance}
                   onChange={(e) => setEditInsurance(e.target.value)}
-                  placeholder="e.g. HealthPlus Gold"
+                  placeholder="e.g. Blue Cross Blue Shield"
                   className="w-full bg-[#f3f3f4] rounded-xl px-4 py-3 text-sm font-medium text-[#1a1c1c] placeholder:text-[#c6c6c6] outline-none focus:ring-2 focus:ring-black/10 transition-all"
                 />
               </div>
@@ -395,7 +389,6 @@ export default function ProfilePage() {
                     <p className="text-sm font-semibold text-[#1a1c1c]">{appt.appointment_type}</p>
                     <p className="text-xs text-[#777777] mt-0.5">
                       {appt.doctor?.name || (appt.doctor_id ? `Doctor ${appt.doctor_id}` : "Specialist")}
-                      {appt.waiting_time !== null ? ` • ${Math.round(appt.waiting_time)} min wait` : ""}
                     </p>
                   </div>
                   <span className={`text-[9px] uppercase tracking-widest font-bold px-3 py-1 rounded-full ${statusColor}`}>

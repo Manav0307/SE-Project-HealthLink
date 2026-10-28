@@ -1,10 +1,10 @@
 """
 SlotService — slot reservation with optimistic locking
-Uses PostgreSQL FOR UPDATE SKIP LOCKED to prevent double-booking
+Supports PostgreSQL and SQLite
 """
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, text
+from sqlalchemy import select, update
 from fastapi import HTTPException, status
 import uuid
 
@@ -33,14 +33,15 @@ class SlotService:
     async def reserve_slot(self, slot_id: str, patient_id: str) -> dict:
         """
         Atomically lock a slot for 15 seconds.
-        Uses FOR UPDATE SKIP LOCKED — first writer wins, others get 409.
+        Uses FOR UPDATE SKIP LOCKED on PostgreSQL, standard select on SQLite.
         """
-        # Try to acquire lock
-        result = await self.db.execute(
-            select(Slot)
-            .where(Slot.slot_id == slot_id, Slot.status == "free")
-            .with_for_update(skip_locked=True)
-        )
+        query = select(Slot).where(Slot.slot_id == slot_id, Slot.status == "free")
+        # Check if database dialect supports with_for_update
+        bind = self.db.bind
+        if bind and getattr(bind, "dialect", None) and bind.dialect.name != "sqlite":
+            query = query.with_for_update(skip_locked=True)
+
+        result = await self.db.execute(query)
         slot = result.scalar_one_or_none()
 
         if not slot:
@@ -61,6 +62,7 @@ class SlotService:
                 locked_by_patient_id=patient_id,
             )
         )
+        await self.db.commit()
 
         return {
             "lock_id": lock_id,
@@ -80,26 +82,33 @@ class SlotService:
         )
         slot = result.scalar_one_or_none()
         if not slot:
-            raise HTTPException(status_code=409, detail="Lock expired. Please restart booking.")
-
-        if slot.lock_expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=409, detail="Lock expired. Please restart booking.")
+            # Also allow direct booking if slot was free
+            free_res = await self.db.execute(
+                select(Slot).where(Slot.slot_id == slot_id, Slot.status == "free")
+            )
+            slot = free_res.scalar_one_or_none()
+            if not slot:
+                raise HTTPException(status_code=409, detail="Slot is no longer available.")
 
         await self.db.execute(
-            update(Slot).where(Slot.slot_id == slot_id).values(status="booked")
+            update(Slot).where(Slot.slot_id == slot_id).values(status="booked", is_available=False)
         )
 
-        appt_id = str(uuid.uuid4())[:7].upper()
+        appt_id = f"APT{str(uuid.uuid4())[:6].upper()}"
         new_appointment = Appointment(
             appointment_id=appt_id,
             slot_id=slot_id,
             patient_id=patient_id,
             appointment_date=slot.appointment_date,
             appointment_time=slot.appointment_time,
-            appointment_type=appointment_type,
+            appointment_type=appointment_type or "General Consultation",
             portal_status="upcoming",
-            doctor_id=doctor_id,
+            doctor_id=doctor_id or getattr(slot, "doctor_id", "D001"),
             scheduling_date=datetime.now(timezone.utc).date(),
+            scheduling_interval=0,
+            status="upcoming",
         )
         self.db.add(new_appointment)
+        await self.db.commit()
+        await self.db.refresh(new_appointment)
         return new_appointment

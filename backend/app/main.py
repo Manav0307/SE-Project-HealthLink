@@ -1,13 +1,11 @@
-
-
 """
 HealthLink FastAPI Application Entry Point
 """
 import os
 from dotenv import load_dotenv
 
-# FORCE LOAD .ENV BEFORE ANYTHING ELSE
-load_dotenv() 
+# Force load .env before anything else
+load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,14 +14,13 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.db.session import engine
 
-# PROTOTYPE FIX: Import all models so SQLAlchemy registers them
-# before create_all runs. Without this, tables are never created.
+# Import all models so SQLAlchemy registers them before create_all
 import app.models  # noqa: F401
 
 from app.routers import (
     auth, patients, doctors, slots,
     appointments, queue, notifications,
-    dashboard, ml_predictions, intake_forms
+    dashboard, intake_forms
 )
 from app.websocket.queue_socket import sio_app
 
@@ -39,12 +36,6 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     print("  ✓ Database tables verified")
 
-    # PROTOTYPE: ML model loading disabled (no .pkl files available)
-    # Original code preserved — uncomment when ML models are trained:
-    # from app.ml.model_loader import ModelLoader
-    # ModelLoader.load_all()
-    print("  ⏭ ML models skipped (prototype mode)")
-
     yield
     # Shutdown
     print("HealthLink API shutting down...")
@@ -52,7 +43,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HealthLink API",
-    description="Smart Appointment Scheduling System",
+    description="Appointment Scheduling & Patient Portal System",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -75,7 +66,6 @@ app.include_router(appointments.router,      prefix="/appointments",  tags=["app
 app.include_router(queue.router,             prefix="/queue",         tags=["queue"])
 app.include_router(notifications.router,     prefix="/notifications", tags=["notifications"])
 app.include_router(dashboard.router,         prefix="/dashboard",     tags=["dashboard"])
-app.include_router(ml_predictions.router,    prefix="/ml",            tags=["ml"])
 app.include_router(intake_forms.router,      prefix="/intake",        tags=["intake"])
 
 # Mount Socket.io for Live Queue WebSocket

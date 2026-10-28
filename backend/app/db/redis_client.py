@@ -1,54 +1,22 @@
 """
-PROTOTYPE MODE: Redis is optional.
-All cache functions silently do nothing if Redis is not running.
-Original Redis logic preserved — just wrapped in try/except.
+In-Memory / Safe Cache Stub.
+Eliminates external Redis dependency for the prototype while keeping
+all function signatures identical for caller compatibility.
 """
-import logging
-
-logger = logging.getLogger(__name__)
-
-# Try to connect to Redis, but don't crash if it's unavailable
-try:
-    import redis.asyncio as aioredis
-    from app.core.config import settings
-    redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-    logger.info("Redis client initialized (connection will be tested on first use)")
-except Exception as e:
-    redis_client = None
-    logger.warning(f"Redis unavailable, caching disabled: {e}")
+_local_cache = {}
 
 
 async def get_cache(key: str):
-    if not redis_client:
-        return None
-    try:
-        return await redis_client.get(key)
-    except Exception:
-        return None
+    return _local_cache.get(key)
 
 
 async def set_cache(key: str, value: str, ttl: int = 60):
-    if not redis_client:
-        return
-    try:
-        await redis_client.setex(key, ttl, value)
-    except Exception:
-        pass
+    _local_cache[key] = value
 
 
 async def delete_cache(key: str):
-    if not redis_client:
-        return
-    try:
-        await redis_client.delete(key)
-    except Exception:
-        pass
+    _local_cache.pop(key, None)
 
 
 async def publish(channel: str, message: str):
-    if not redis_client:
-        return
-    try:
-        await redis_client.publish(channel, message)
-    except Exception:
-        pass
+    pass

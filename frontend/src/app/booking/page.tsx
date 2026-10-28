@@ -49,7 +49,7 @@ const APPOINTMENT_TYPES = [
   "Vaccination",
 ]
 
-/** Generate realistic demo time slots for a given date */
+/** Generate realistic time slots for a given date */
 function generateDemoSlots(dateStr: string): Slot[] {
   const slotTimes = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
@@ -57,28 +57,17 @@ function generateDemoSlots(dateStr: string): Slot[] {
     "16:30", "17:00",
   ]
 
-  // Use date string as seed for consistent results per date
-  const seed = dateStr.split("-").reduce((a, b) => a + parseInt(b), 0)
-
-  return slotTimes.map((time, i) => {
-    const hash = (seed * 31 + i * 17) % 100
-    const waitMin = Math.round(3 + (hash % 25))
-    const noShowProb = parseFloat((0.05 + (hash % 30) / 100).toFixed(2))
-    const trafficLevel = waitMin < 10 ? "low" : waitMin < 18 ? "medium" : "peak"
-    const isRecommended = i === (seed % slotTimes.length)
-
-    return {
-      slot_id: `SLOT-${dateStr}-${i.toString().padStart(2, "0")}`,
-      appointment_date: dateStr,
-      appointment_time: `${time}:00`,
-      status: "free" as const,
-      duration_min: 15 + (hash % 3) * 5, // 15, 20, or 25
-      predicted_wait_min: waitMin,
-      no_show_probability: noShowProb,
-      traffic_level: trafficLevel as "low" | "medium" | "peak",
-      is_recommended: isRecommended,
-    }
-  })
+  return slotTimes.map((time, i) => ({
+    slot_id: `SLOT-${dateStr}-${i.toString().padStart(2, "0")}`,
+    appointment_date: dateStr,
+    appointment_time: `${time}:00`,
+    status: "free" as const,
+    duration_min: 15,
+    predicted_wait_min: 0,
+    no_show_probability: 0,
+    traffic_level: "low" as const,
+    is_recommended: false,
+  }))
 }
 
 export default function BookingPage() {
@@ -114,17 +103,15 @@ export default function BookingPage() {
       const { data } = await slotsApi.getAvailable(selectedDateStr)
       if (Array.isArray(data) && data.length > 0) {
         setSlots(data)
-        const rec = data.find((s: Slot) => s.is_recommended)
-        if (rec) setSelectedSlot(rec)
+        setSelectedSlot(data[0])
       } else {
         throw new Error("empty")
       }
     } catch {
-      // Fallback: generate demo slots
+      // Fallback: standard available time slots
       const demoSlots = generateDemoSlots(selectedDateStr)
       setSlots(demoSlots)
-      const rec = demoSlots.find((s) => s.is_recommended)
-      if (rec) setSelectedSlot(rec)
+      setSelectedSlot(demoSlots[0])
     } finally {
       setLoadingSlots(false)
     }
@@ -155,17 +142,17 @@ export default function BookingPage() {
       portal_status: "upcoming",
       appointment_type: appointmentType,
       reschedule_count: 0,
-      waiting_time: selectedSlot.predicted_wait_min,
-      appointment_duration: selectedSlot.duration_min,
+      waiting_time: 0,
+      appointment_duration: selectedSlot.duration_min || 15,
       doctor_id: selectedDoctor.id,
       summary_url: null,
       doctor: {
         doctor_id: selectedDoctor.id,
         name: selectedDoctor.name,
         specialization: selectedDoctor.specialization,
-        rating: 4.5 + Math.random() * 0.5,
+        rating: 4.8,
         profile_image_url: null,
-        avg_session_duration_min: selectedSlot.duration_min,
+        avg_session_duration_min: selectedSlot.duration_min || 15,
       },
     }
     addLocalAppointment(newAppt)
@@ -187,9 +174,6 @@ export default function BookingPage() {
     return `${hour}:${String(m).padStart(2, "0")} ${ampm}`
   }
 
-  const recommended = slots.filter((s) => s.is_recommended)
-  const others = slots.filter((s) => !s.is_recommended)
-
   return (
     <AppShell>
       <div className="animate-fade-in space-y-6 max-w-5xl">
@@ -206,7 +190,7 @@ export default function BookingPage() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-bold text-[#1b5e20]">Appointment Booked Successfully!</p>
-              <p className="text-xs text-[#2e7d32] mt-0.5">Confirmation has been sent to your registered email.</p>
+              <p className="text-xs text-[#2e7d32] mt-0.5">Confirmation has been recorded in your patient schedule.</p>
             </div>
             <button
               onClick={() => router.push("/appointments")}
@@ -262,7 +246,7 @@ export default function BookingPage() {
                 <div className="grid grid-cols-7 gap-0">
                   {calendarDays.flat().map((day, i) => {
                     if (day === 0) return <div key={`empty-${i}`} />
-                    const isSelected = day === selectedDate && currentMonth === today.getMonth() ? day === selectedDate : day === selectedDate
+                    const isSelected = day === selectedDate
                     const dayDate = new Date(currentYear, currentMonth, day)
                     const isPast = dayDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())
                     const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear()
@@ -366,91 +350,40 @@ export default function BookingPage() {
                   <p className="text-sm text-[#777777]">No slots available for this date</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {/* Recommended Slot */}
-                  {recommended.map((slot) => {
+                <div className="grid grid-cols-2 gap-3">
+                  {slots.map((slot) => {
                     const isSelected = selectedSlot?.slot_id === slot.slot_id
                     return (
                       <button
                         key={slot.slot_id}
                         onClick={() => setSelectedSlot(slot)}
                         className={`
-                          w-full text-left p-5 rounded-2xl transition-all duration-200 relative
+                          text-left p-4 rounded-2xl transition-all duration-200
                           ${isSelected
-                            ? "bg-white ring-2 ring-black shadow-[0_2px_16px_rgba(0,0,0,0.08)]"
-                            : "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
+                            ? "bg-black text-white shadow-[0_2px_12px_rgba(0,0,0,0.2)] ring-2 ring-black"
+                            : "bg-[#f3f3f4] hover:bg-[#e8e8e8]"
                           }
                         `}
                       >
-                        <span className="absolute top-3 right-3 bg-black text-white text-[8px] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold">
-                          AI Recommended
-                        </span>
-                        <p className="text-xl font-bold text-black">{formatTime(slot.appointment_time)}</p>
-                        <p className="text-xs text-[#777777] mt-1">ML predicts shortest wait for your profile</p>
-                        <div className="flex gap-6 mt-3">
-                          <div>
-                            <p className="hl-label">Duration</p>
-                            <p className="text-xs font-semibold text-[#1a1c1c] mt-0.5">{slot.duration_min} min</p>
-                          </div>
-                          <div>
-                            <p className="hl-label">Est. Wait</p>
-                            <p className="text-xs font-semibold text-[#1a1c1c] mt-0.5">{slot.predicted_wait_min} min</p>
-                          </div>
-                          <div>
-                            <p className="hl-label">No-Show Risk</p>
-                            <p className="text-xs font-semibold text-[#1a1c1c] mt-0.5">{(slot.no_show_probability * 100).toFixed(0)}%</p>
-                          </div>
-                          <div>
-                            <p className="hl-label">Traffic</p>
-                            <p className={`text-xs font-semibold mt-0.5 ${
-                              slot.traffic_level === "peak" ? "text-[#ba1a1a]" :
-                              slot.traffic_level === "medium" ? "text-[#e65100]" :
-                              "text-[#2e7d32]"
-                            }`}>{slot.traffic_level}</p>
-                          </div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className={`text-sm font-bold ${isSelected ? "text-white" : "text-black"}`}>
+                            {formatTime(slot.appointment_time)}
+                          </p>
+                          <span className={`text-[8px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold ${
+                            isSelected ? "bg-white text-black" : "bg-[#e8f5e9] text-[#2e7d32]"
+                          }`}>
+                            Available
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[14px] opacity-60">timer</span>
+                          <p className={`text-xs ${isSelected ? "text-white/80" : "text-[#777777]"}`}>
+                            {slot.duration_min || 15} mins consultation
+                          </p>
                         </div>
                       </button>
                     )
                   })}
-
-                  {/* Other Slots */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {others.map((slot) => {
-                      const isSelected = selectedSlot?.slot_id === slot.slot_id
-                      return (
-                        <button
-                          key={slot.slot_id}
-                          onClick={() => setSelectedSlot(slot)}
-                          className={`
-                            text-left p-4 rounded-2xl transition-all duration-200
-                            ${isSelected
-                              ? "bg-black text-white shadow-[0_2px_12px_rgba(0,0,0,0.2)]"
-                              : "bg-[#f3f3f4] hover:bg-[#e8e8e8]"
-                            }
-                          `}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <p className={`text-sm font-bold ${isSelected ? "text-white" : "text-black"}`}>{formatTime(slot.appointment_time)}</p>
-                            <span className={`text-[8px] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold ${
-                              isSelected ? "bg-white text-black" : slot.traffic_level === "peak" ? "bg-[#ffdad6] text-[#ba1a1a]" : slot.traffic_level === "medium" ? "bg-[#fff3e0] text-[#e65100]" : "bg-[#e8f5e9] text-[#2e7d32]"
-                            }`}>
-                              {slot.traffic_level}
-                            </span>
-                          </div>
-                          <div className="flex gap-4">
-                            <div>
-                              <p className={`text-[9px] uppercase tracking-[0.05em] ${isSelected ? "text-white/60" : "text-[#777777]"}`}>Wait</p>
-                              <p className={`text-xs font-semibold mt-0.5 ${isSelected ? "text-white" : "text-[#1a1c1c]"}`}>{slot.predicted_wait_min}m</p>
-                            </div>
-                            <div>
-                              <p className={`text-[9px] uppercase tracking-[0.05em] ${isSelected ? "text-white/60" : "text-[#777777]"}`}>Duration</p>
-                              <p className={`text-xs font-semibold mt-0.5 ${isSelected ? "text-white" : "text-[#1a1c1c]"}`}>{slot.duration_min}m</p>
-                            </div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
                 </div>
               )}
             </section>
@@ -492,8 +425,7 @@ export default function BookingPage() {
                     </div>
                   </div>
                   <div className="flex gap-4 text-xs text-[#777777]">
-                    <span>Est. Wait: <strong className="text-[#1a1c1c]">{selectedSlot.predicted_wait_min} min</strong></span>
-                    <span>Duration: <strong className="text-[#1a1c1c]">{selectedSlot.duration_min} min</strong></span>
+                    <span>Duration: <strong className="text-[#1a1c1c]">{selectedSlot.duration_min || 15} min</strong></span>
                   </div>
                 </div>
 
@@ -515,7 +447,7 @@ export default function BookingPage() {
                   )}
                 </button>
                 <p className="text-[10px] text-[#777777] mt-3 text-center leading-relaxed">
-                  A booking notification will be sent to your registered email.
+                  A booking confirmation will be stored in your patient profile.
                 </p>
               </section>
             )}
