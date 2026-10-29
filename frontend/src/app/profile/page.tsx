@@ -1,7 +1,7 @@
 "use client"
 import AppShell from "@/components/layout/AppShell"
 import { useState, useEffect } from "react"
-import { useAuthStore } from "@/store/auth-store"
+import { useAuthStore, DEFAULT_PATIENT } from "@/store/auth-store"
 import { useBookingStore } from "@/store/booking-store"
 import { patientsApi, appointmentsApi } from "@/lib/api"
 import type { BehaviorInsights, Appointment } from "@/types"
@@ -9,7 +9,8 @@ import type { BehaviorInsights, Appointment } from "@/types"
 const GENDER_OPTIONS = ["Male", "Female", "Non-binary", "Prefer not to say"]
 
 export default function ProfilePage() {
-  const { patient, updatePatient } = useAuthStore()
+  const { patient: rawPatient, updatePatient } = useAuthStore()
+  const patient = rawPatient || DEFAULT_PATIENT
   const { localAppointments } = useBookingStore()
   const [insights, setInsights] = useState<BehaviorInsights | null>(null)
   const [history, setHistory] = useState<Appointment[]>([])
@@ -32,16 +33,38 @@ export default function ProfilePage() {
     fetchData()
   }, [patient?.patient_id])
 
+  // Re-sync form fields whenever patient data is loaded/changed (handles Zustand SSR hydration)
+  useEffect(() => {
+    const p = patient || DEFAULT_PATIENT
+    setEditName(p.name ?? "")
+    setEditEmail(p.email ?? "")
+    setEditGender(p.gender ?? p.sex ?? "")
+    setEditAge(p.age?.toString() ?? "")
+    setEditEmergency(p.emergency_contact ?? "")
+    setEditBloodType(p.blood_type ?? "")
+    setEditInsurance(p.insurance ?? "")
+  }, [patient])
+
   const fetchData = async () => {
-    if (!patient?.patient_id) return
+    // Use store patient or fall back to default showcase patient
+    const patientId = patient?.patient_id || DEFAULT_PATIENT.patient_id
+    if (!patientId) { setLoading(false); return }
     try {
       setLoading(true)
-      const [insightsRes, historyRes] = await Promise.all([
-        patientsApi.getBehaviorInsights(patient.patient_id),
-        appointmentsApi.list("completed"),
+      const [profileRes, insightsRes, historyRes] = await Promise.all([
+        patientsApi.getProfile(patientId).catch(() => null),
+        patientsApi.getBehaviorInsights(patientId).catch(() => null),
+        appointmentsApi.list("completed", patientId).catch(() => null),
       ])
-      setInsights(insightsRes.data)
-      setHistory(historyRes.data.slice(0, 5))
+      if (profileRes?.data) {
+        updatePatient(profileRes.data)
+      }
+      if (insightsRes?.data) {
+        setInsights(insightsRes.data)
+      }
+      if (historyRes?.data) {
+        setHistory((historyRes.data || []).slice(0, 5))
+      }
     } catch {
       // Demo fallback
       const totalLocal = localAppointments.length

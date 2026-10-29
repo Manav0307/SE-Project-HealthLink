@@ -1,7 +1,6 @@
 """
 HealthLink FastAPI Application Entry Point
 """
-import os
 from dotenv import load_dotenv
 
 # Force load .env before anything else
@@ -46,6 +45,7 @@ app = FastAPI(
     description="Appointment Scheduling & Patient Portal System",
     version="1.0.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # CORS

@@ -13,7 +13,8 @@ from app.schemas.dashboard import AlertItem
 router = APIRouter()
 
 
-@router.get("/", response_model=List[AlertItem])
+@router.get("", response_model=List[AlertItem])
+@router.get("/", response_model=List[AlertItem], include_in_schema=False)
 async def list_notifications(
     unread_only: bool = False,
     db: AsyncSession = Depends(get_db),

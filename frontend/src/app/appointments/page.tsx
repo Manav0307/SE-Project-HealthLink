@@ -2,7 +2,7 @@
 import AppShell from "@/components/layout/AppShell"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useAuthStore } from "@/store/auth-store"
+import { useAuthStore, DEFAULT_PATIENT } from "@/store/auth-store"
 import { appointmentsApi } from "@/lib/api"
 import type { Appointment } from "@/types"
 
@@ -23,16 +23,18 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchAppointments()
-  }, [patient?.patient_id])
+  }, [patient?.patient_id])  // fires on mount and when patient changes
 
   const fetchAppointments = async () => {
-    if (!patient?.patient_id) return
+    // Use patient from store, or fall back to the default showcase patient
+    const patientId = patient?.patient_id || DEFAULT_PATIENT.patient_id
+    if (!patientId) { setLoading(false); return }
     try {
       setLoading(true)
       const [upRes, compRes, missedRes] = await Promise.all([
-        appointmentsApi.list("upcoming"),
-        appointmentsApi.list("completed"),
-        appointmentsApi.list("missed"),
+        appointmentsApi.list("upcoming", patientId),
+        appointmentsApi.list("completed", patientId),
+        appointmentsApi.list("missed", patientId),
       ])
       setApiUpcoming(upRes.data || [])
       setApiPast([...(compRes.data || []), ...(missedRes.data || [])])

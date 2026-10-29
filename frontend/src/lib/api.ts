@@ -34,7 +34,7 @@ export const dashboardApi = {
 }
 
 export const appointmentsApi = {
-  list: (status?: string) => api.get("/appointments", { params: { status } }),
+  list: (status?: string, patient_id?: string) => api.get("/appointments", { params: { status, patient_id } }),
   cancel: (id: string, reason?: string) => api.patch(`/appointments/${id}/cancel`, { reason }),
   reschedule: (id: string, new_slot_id: string) => api.post(`/appointments/${id}/reschedule`, { new_slot_id }),
   getRescheduleOptions: (id: string) => api.get(`/appointments/${id}/reschedule-options`),

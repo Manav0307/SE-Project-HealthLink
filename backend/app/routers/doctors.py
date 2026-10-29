@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
@@ -12,7 +11,8 @@ from app.models.patient import Patient
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
+@router.get("/", include_in_schema=False)
 async def list_doctors(
     specialization: str = None,
     db: AsyncSession = Depends(get_db),

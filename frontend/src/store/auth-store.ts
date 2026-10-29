@@ -46,6 +46,13 @@ export const useAuthStore = create<AuthState>()(
         })),
       logout: () => set({ accessToken: null, refreshToken: null, patient: DEFAULT_PATIENT }),
     }),
-    { name: "healthlink-auth" }
+    {
+      name: "healthlink-auth",
+      merge: (persistedState: any, currentState: AuthState) => ({
+        ...currentState,
+        ...persistedState,
+        patient: persistedState?.patient ?? DEFAULT_PATIENT,
+      }),
+    }
   )
 )

@@ -3,7 +3,7 @@ Appointments router
 Endpoints: list, cancel, reschedule, history, summary
 Business rules enforced server-side
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 
@@ -16,7 +16,8 @@ from app.models.patient import Patient
 router = APIRouter()
 
 
-@router.get("/", response_model=List[AppointmentOut])
+@router.get("", response_model=List[AppointmentOut])
+@router.get("/", response_model=List[AppointmentOut], include_in_schema=False)
 async def list_appointments(
     appt_status: Optional[str] = Query(None, alias="status"),
     patient_id: Optional[str] = None,
